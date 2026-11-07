@@ -275,3 +275,7 @@ body {
     }
   }
 }
+
+html[data-player-theme="light"] .player-error {
+  color: #982f2f;
+}

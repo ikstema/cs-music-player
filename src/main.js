@@ -42,6 +42,7 @@ const autostartDialog = document.querySelector('#autostart-dialog')
 const autostartEnableButton = document.querySelector('#autostart-enable')
 const autostartSkipButton = document.querySelector('#autostart-skip')
 const checkUpdatesButton = document.querySelector('#check-updates')
+const playerSettings = document.querySelector('.player-settings')
 const updateStatus = document.querySelector('#update-status')
 const updateDialog = document.querySelector('#update-dialog')
 const updateMessage = document.querySelector('#update-message')
@@ -81,13 +82,22 @@ loginForm.addEventListener('submit', login)
 loginForm.hidden = true
 playButton.addEventListener('click', togglePlayback)
 document.querySelector('#logout-button').addEventListener('click', logout)
+document.addEventListener('pointerdown', (event) => {
+  if (playerSettings.open && !playerSettings.contains(event.target)) playerSettings.open = false
+})
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && playerSettings.open) playerSettings.open = false
+})
 document.querySelector('#retry-restore').addEventListener('click', restoreSavedAccount)
 document.querySelector('#restore-logout').addEventListener('click', logout)
 autostartToggle.addEventListener('change', updateAutostartSetting)
 autostartEnableButton.addEventListener('click', enableAutostartFromPrompt)
 autostartSkipButton.addEventListener('click', dismissAutostartPrompt)
 autostartDialog.addEventListener('cancel', () => localStorage.setItem(AUTOSTART_ASKED_KEY, 'true'))
-checkUpdatesButton.addEventListener('click', () => checkForUpdates(true))
+checkUpdatesButton.addEventListener('click', () => {
+  playerSettings.open = false
+  checkForUpdates(true)
+})
 updateLaterButton.addEventListener('click', () => updateDialog.close())
 updateInstallButton.addEventListener('click', installAvailableUpdate)
 document.querySelector('#light-theme-toggle').addEventListener('change', (event) => setTheme(event.currentTarget.checked))

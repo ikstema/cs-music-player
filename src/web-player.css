@@ -18,11 +18,11 @@
 .playback-panel .volume-controls{display:flex;flex-direction:column;align-items:stretch;gap:11px;width:100%;margin:0}
 .playback-panel .volume-control{display:grid;grid-template-columns:88px minmax(0,1fr);align-items:center;gap:16px;width:100%;margin:0;color:var(--cream);font-size:11px}
 .playback-panel .volume-control input{width:100%;min-width:0;height:4px;accent-color:var(--sage);cursor:pointer}
-.playback-panel .volume-label{color:#fff;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+.playback-panel .volume-label{color:var(--cream);font-size:11px;text-transform:uppercase;letter-spacing:.04em}
 @media(max-width:800px){.playback-panel{grid-template-columns:minmax(0,1fr) minmax(260px,40%);column-gap:18px}}
 @media(max-width:560px){.playback-panel{grid-template-columns:minmax(0,1fr);row-gap:0;padding:17px 0 16px}.playback-panel .playback-controls{padding:0 0 14px;gap:13px}.playback-panel .volume-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:0}.playback-panel .volume-control{grid-template-columns:minmax(0,1fr);gap:7px}.playback-panel .volume-label{font-size:10px}}
 
-.autoplay-setting{display:flex;align-items:center;gap:8px;color:#fff;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;cursor:pointer}
+.autoplay-setting{display:flex;align-items:center;gap:8px;color:var(--cream);font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;cursor:pointer}
 .autoplay-setting input{width:15px;height:15px;margin:0;accent-color:var(--sage);cursor:pointer}
 @media(max-width:560px){.player-header{align-items:flex-start;gap:10px}.header-right{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;justify-items:end;gap:6px 12px}.header-right .identity{grid-column:1;grid-row:1;min-width:0}.header-right>form{grid-column:2;grid-row:1}.header-right .autoplay-setting{grid-column:1/-1;grid-row:2;justify-self:end;font-size:7px;letter-spacing:.05em}.header-right .autoplay-setting input{width:13px;height:13px}}
 
@@ -49,6 +49,7 @@
 
 html[data-player-theme="light"]{color-scheme:light;--ink:#f4f3ef;--panel:#fff;--cream:#1b1d1a;--sage:#71866a;--wine:#9a3030;--linen:#a9aca0;--muted:rgba(27,29,26,.58);--line:rgba(27,29,26,.16)}
 html[data-player-theme="light"] .live-indicator{color:rgba(27,29,26,.5)}
+html[data-player-theme="light"] .time-row{color:rgba(27,29,26,.55)}
 html[data-player-theme="light"] .live-indicator i{background:rgba(70,88,64,.36)}
 html[data-player-theme="light"] .live-indicator.is-live i{background:#6f9362;box-shadow:0 0 10px rgba(111,147,98,.5)}
 html[data-player-theme="light"] .wordmark-dot{border-color:rgba(27,29,26,.3)}
