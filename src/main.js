@@ -17,6 +17,7 @@ const MUSIC_VOLUME_KEY = 'cityshake-player.music-volume'
 const AD_VOLUME_KEY = 'cityshake-player.ad-volume'
 const AUTOSTART_ASKED_KEY = 'cityshake-player.autostart-asked'
 const isAndroid = /Android/i.test(navigator.userAgent)
+if (isAndroid) document.documentElement.dataset.clientPlatform = 'android'
 const loginForm = document.querySelector('#connect-form')
 const usernameInput = document.querySelector('#player-username')
 const passwordInput = document.querySelector('#player-password')

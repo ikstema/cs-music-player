@@ -276,6 +276,126 @@ body {
   }
 }
 
+html[data-client-platform="android"],
+html[data-client-platform="android"] body {
+  height: auto;
+  min-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+html[data-client-platform="android"] #connect-view,
+html[data-client-platform="android"] #player-view {
+  height: auto;
+  min-height: 100vh;
+  overflow: visible;
+}
+
+html[data-client-platform="android"] .login-page {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+html[data-client-platform="android"] .login-art {
+  display: none;
+}
+
+html[data-client-platform="android"] .login-card {
+  width: min(100%, 540px);
+  padding: clamp(28px, 8vw, 48px);
+}
+
+html[data-client-platform="android"] .login-card > .eyebrow {
+  margin-top: 52px;
+}
+
+html[data-client-platform="android"] .player-app {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  min-height: 100vh;
+  overflow: visible;
+}
+
+html[data-client-platform="android"] .player-header {
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px clamp(18px, 4vw, 32px);
+}
+
+html[data-client-platform="android"] .player-header > .header-right {
+  display: flex;
+  max-width: 100%;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px 12px;
+}
+
+html[data-client-platform="android"] .player-header .identity {
+  min-width: 0;
+}
+
+html[data-client-platform="android"] .player-header .identity strong {
+  display: block;
+  max-width: min(48vw, 260px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html[data-client-platform="android"] .player-main {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+  padding: 24px clamp(18px, 4vw, 36px) 28px;
+}
+
+html[data-client-platform="android"] .now-playing {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+  margin: 28px 0;
+}
+
+html[data-client-platform="android"] .album-wrap {
+  width: min(70vw, 345px);
+  margin: 0 auto;
+}
+
+html[data-client-platform="android"] .track-meta h1 {
+  max-width: none;
+  font-size: clamp(30px, 8vw, 44px);
+}
+
+html[data-client-platform="android"] .playback-panel {
+  grid-template-columns: minmax(0, 1fr);
+  row-gap: 16px;
+  padding: 18px 0;
+}
+
+html[data-client-platform="android"] .playback-panel .playback-controls,
+html[data-client-platform="android"] .playback-panel .volume-controls,
+html[data-client-platform="android"] .playback-panel .volume-control {
+  min-width: 0;
+}
+
+html[data-client-platform="android"] .history-section {
+  display: block;
+  min-height: 0;
+  padding-top: 28px;
+}
+
+html[data-client-platform="android"] .history-list {
+  height: clamp(220px, 32vh, 340px);
+  min-height: 0;
+}
+
+html[data-client-platform="android"] .player-footer {
+  margin-top: 24px;
+}
+
 html[data-player-theme="light"] .player-error {
   color: #982f2f;
 }
