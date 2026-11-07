@@ -56,6 +56,9 @@ let autostartSupported = false
 let pendingDesktopUpdate = null
 let pendingAndroidUpdate = null
 let checkingForUpdates = false
+let playbackRetryTimer = null
+let playbackRetryAttempt = 0
+let isLoggingOut = false
 
 const state = {
   player: null,
@@ -435,7 +438,8 @@ function removeIdentityPrefix(value, prefix) {
 }
 
 async function startOrRetry() {
-  if (!state.player || state.isCompleting || playButton.disabled) return
+  if (!state.player || isLoggingOut || state.isCompleting || playButton.disabled) return
+  clearPlaybackRetry()
   playerError.textContent = ''
   setPlayBusy(true, 'Подготавливаем эфир…')
   try {
@@ -445,17 +449,54 @@ async function startOrRetry() {
     }
     const result = await invoke('start_playback')
     if (!result.item) {
+      if (isPlayerSessionBusy(result.message)) {
+        schedulePlaybackRetry()
+        return
+      }
+      clearPlaybackRetry(true)
       setTrack(null)
       setPlaybackState(false)
       showError(result.message || 'В плейлисте пока нет доступных треков.')
       return
     }
+    clearPlaybackRetry(true)
     await playItem(result.item)
   } catch (error) {
-    showError(error)
+    if (isPlayerSessionBusy(error)) schedulePlaybackRetry()
+    else {
+      clearPlaybackRetry(true)
+      showError(error)
+    }
   } finally {
     setPlayBusy(false)
   }
+}
+
+function isPlayerSessionBusy(error) {
+  const message = errorText(error)
+  return message.startsWith('__PLAYER_SESSION_BUSY__:')
+    || /плеер.{0,80}(?:используется на другом устройстве|занят)|player.{0,80}(?:already in use|in use by another device)/i.test(message)
+}
+
+function clearPlaybackRetry(resetAttempt = false) {
+  if (playbackRetryTimer !== null) {
+    clearTimeout(playbackRetryTimer)
+    playbackRetryTimer = null
+  }
+  if (resetAttempt) playbackRetryAttempt = 0
+}
+
+function schedulePlaybackRetry() {
+  if (!state.player || isLoggingOut || playbackRetryTimer !== null) return
+  const delayMs = Math.min(10_000, 2_000 + playbackRetryAttempt * 1_500)
+  playbackRetryAttempt += 1
+  playerError.textContent = 'Предыдущая сессия ещё завершается. Повторяем подключение…'
+  playbackRetryTimer = window.setTimeout(() => {
+    playbackRetryTimer = null
+    if (state.player && !isLoggingOut && !state.isPlaying && !state.isCompleting) {
+      void startOrRetry()
+    }
+  }, delayMs)
 }
 
 async function playItem(item) {
@@ -534,11 +575,14 @@ async function togglePlayback() {
 }
 
 async function logout() {
+  isLoggingOut = true
+  clearPlaybackRetry(true)
   playerError.textContent = ''
   try {
     if (isAndroid) await invoke('plugin:native-audio|clear_credentials')
     else await invoke('clear_saved_credentials')
   } catch (error) {
+    isLoggingOut = false
     showError(error)
     return
   }
@@ -555,6 +599,7 @@ async function logout() {
     showError(error)
   }
   state.player = null
+  isLoggingOut = false
   state.history = []
   setTrack(null)
   renderHistory()

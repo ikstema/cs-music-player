@@ -357,7 +357,12 @@ async fn queue_response(
         .await
         .map_err(|error| format!("Не удалось связаться с сервисом: {error}"))?;
     if !response.status().is_success() {
-        return Err(response_error(response).await);
+        let status = response.status().as_u16();
+        let message = response_error(response).await;
+        if status == 409 {
+            return Err(format!("__PLAYER_SESSION_BUSY__:{message}"));
+        }
+        return Err(message);
     }
     let mut queue: QueueResponse = response
         .json()
