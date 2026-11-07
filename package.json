@@ -1,7 +1,7 @@
 {
   "name": "cityshake-player-client",
   "private": true,
-  "version": "0.1.9",
+  "version": "0.1.10",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,9 +10,10 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
-    "android:init": "tauri android init",
+    "android:init": "tauri android init && npm run android:sync-icons",
+    "android:sync-icons": "node scripts/sync-android-icons.mjs",
     "android:dev": "tauri android dev",
-    "android:build": "tauri android build"
+    "android:build": "npm run android:sync-icons && tauri android build"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.0.0",
