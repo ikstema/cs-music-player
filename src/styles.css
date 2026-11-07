@@ -140,6 +140,25 @@ body {
   max-width: 100%;
 }
 
+.logout-button.player-icon-button {
+  display: inline-flex;
+  width: auto;
+  min-width: 82px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 10px;
+}
+
+.logout-button.player-icon-button span {
+  margin: 0;
+  color: inherit;
+  white-space: nowrap;
+}
+
 .track-meta h1,
 .track-meta p,
 .track-overline {

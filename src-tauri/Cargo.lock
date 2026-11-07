@@ -533,7 +533,7 @@ dependencies = [
 
 [[package]]
 name = "cityshake-player"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "keyring",
  "reqwest 0.12.28",
