@@ -56,6 +56,8 @@ html[data-player-theme="light"] .wordmark-dot{border-color:rgba(27,29,26,.3)}
 html[data-player-theme="light"] .album-cover{border-color:var(--line);background:radial-gradient(ellipse at 28% 30%,rgba(134,155,126,.32),transparent 42%),radial-gradient(ellipse at 76% 80%,rgba(127,32,32,.2),transparent 44%),linear-gradient(135deg,#e8ece6,#f4f3ef 76%);box-shadow:0 25px 65px rgba(0,0,0,.1)}
 html[data-player-theme="light"] .album-cover:before,html[data-player-theme="light"] .album-cover:after{border-color:rgba(27,29,26,.12)}
 html[data-player-theme="light"] .album-sheen{border-color:rgba(27,29,26,.04)}
+html[data-player-theme="light"] .cover-fallback span{color:rgba(27,29,26,.86)}
+html[data-player-theme="light"] .cover-fallback small{color:rgba(27,29,26,.62)}
 html[data-player-theme="light"] .progress-track{background:rgba(27,29,26,.16)}
 html[data-player-theme="light"] .volume-control{color:rgba(27,29,26,.62)}
 html[data-player-theme="light"] .history-count,html[data-player-theme="light"] .history-number,html[data-player-theme="light"] .history-time,html[data-player-theme="light"] .history-empty,html[data-player-theme="light"] .player-footer{color:rgba(27,29,26,.48)}
