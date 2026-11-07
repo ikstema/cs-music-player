@@ -1,0 +1,155 @@
+name: Publish Cityshake Player
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  desktop:
+    name: Build ${{ matrix.platform }} ${{ matrix.arch }}
+    runs-on: ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      # Each tauri-action job updates the same draft release and latest.json.
+      # Serialize those uploads to avoid races between the architecture builds.
+      max-parallel: 1
+      matrix:
+        include:
+          - platform: macos-latest
+            arch: arm64
+            rust-target: aarch64-apple-darwin
+            args: --target aarch64-apple-darwin
+          - platform: macos-latest
+            arch: x64
+            rust-target: x86_64-apple-darwin
+            args: --target x86_64-apple-darwin
+          - platform: windows-latest
+            arch: x64
+            rust-target: ""
+            args: ""
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+        if: matrix.rust-target != ''
+        with:
+          targets: ${{ matrix.rust-target }}
+
+      - uses: dtolnay/rust-toolchain@stable
+        if: matrix.rust-target == ''
+
+      - run: npm ci
+
+      - name: Ensure the tag matches the app version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          app_version="$(node -p "require('./package.json').version")"
+          test "$GITHUB_REF_NAME" = "v$app_version"
+
+      - uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        with:
+          projectPath: .
+          tagName: v__VERSION__
+          releaseName: Cityshake Player v__VERSION__
+          releaseBody: Signed installers for macOS and Windows. The Android APK is attached after the desktop builds finish.
+          releaseDraft: true
+          prerelease: false
+          uploadUpdaterJson: true
+          uploadUpdaterSignatures: true
+          args: ${{ matrix.args }}
+
+  android:
+    name: Build and sign Android APK
+    needs: desktop
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Install Android SDK components
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
+
+      - name: Set Android NDK path
+        run: echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
+
+      - run: npm ci
+
+      - run: npm run android:init
+
+      - run: npm run android:build -- --target aarch64 --apk --ci
+
+      - name: Align, sign, and verify APK
+        env:
+          ANDROID_KEY_BASE64: ${{ secrets.ANDROID_KEY_BASE64 }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$ANDROID_KEY_BASE64"
+          test -n "$ANDROID_KEY_ALIAS"
+          test -n "$ANDROID_KEY_PASSWORD"
+
+          key_store="$RUNNER_TEMP/cityshake-release.jks"
+          aligned_apk="$RUNNER_TEMP/cityshake-player-aligned.apk"
+          unsigned_apk="$(find src-tauri/gen/android/app/build/outputs/apk -type f -name '*release-unsigned.apk' -print -quit)"
+          test -n "$unsigned_apk"
+          printf '%s' "$ANDROID_KEY_BASE64" | base64 --decode > "$key_store"
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -f -p 4 "$unsigned_apk" "$aligned_apk"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" sign \
+            --ks "$key_store" \
+            --ks-key-alias "$ANDROID_KEY_ALIAS" \
+            --ks-pass env:ANDROID_KEY_PASSWORD \
+            --key-pass env:ANDROID_KEY_PASSWORD \
+            --out "$GITHUB_WORKSPACE/cityshake-player-android-arm64.apk" \
+            "$aligned_apk"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$GITHUB_WORKSPACE/cityshake-player-android-arm64.apk"
+
+      - name: Read app version
+        id: version
+        run: |
+          node - <<'NODE' >> "$GITHUB_OUTPUT"
+          const version = require('./package.json').version
+          console.log(`version=${version}`)
+          NODE
+
+      - name: Publish Android APK and release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          files: cityshake-player-android-arm64.apk
+          draft: false
+          prerelease: false
+          make_latest: true

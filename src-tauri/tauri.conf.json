@@ -1,0 +1,59 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Cityshake Player",
+  "version": "0.1.4",
+  "identifier": "com.cityshake.player",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Cityshake Player",
+        "width": 1120,
+        "height": 940,
+        "minWidth": 760,
+        "minHeight": 760,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data: http: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; script-src 'self'; connect-src 'self' ipc: http://ipc.localhost http: https:"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "createUpdaterArtifacts": true,
+    "targets": "all",
+    "category": "Music",
+    "android": {
+      "minSdkVersion": 26
+    },
+    "macOS": {
+      "signingIdentity": "-"
+    },
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "shortDescription": "Cityshake Media player",
+    "longDescription": "Клиент Cityshake Media для музыкальной трансляции на macOS, Windows и Android"
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDg2NThDODU3OEJGMjJBN0EKUldSNkt2S0xWOGhZaHErNXkrNm02dlc2T0FrM05nVU5tNXd2YitNVnpRUm95S3hGZUFHaHBUc3YK",
+      "endpoints": [
+        "https://github.com/ikstema/cs-music-player/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}

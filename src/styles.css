@@ -1,0 +1,277 @@
+@import './web-player.css';
+
+#connect-view[hidden],
+#player-view[hidden] {
+  display: none !important;
+}
+
+.player-error {
+  min-height: 0;
+  margin: 10px 0 0;
+  color: #e9b0a5;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.player-error:empty {
+  display: none;
+}
+
+.cover-fallback[hidden] {
+  display: none;
+}
+
+html,
+body {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+#connect-view,
+#player-view {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100vw;
+}
+
+.login-form[hidden],
+.restore-actions[hidden],
+#autostart-setting[hidden] {
+  display: none !important;
+}
+
+.restore-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 28px;
+}
+
+.restore-actions .form-error {
+  margin-bottom: 4px;
+}
+
+.autostart-dialog {
+  width: min(440px, calc(100vw - 36px));
+  padding: 28px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--cream);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, .5);
+}
+
+.autostart-dialog::backdrop {
+  background: rgba(0, 0, 0, .62);
+  backdrop-filter: blur(3px);
+}
+
+.autostart-dialog h2 {
+  margin: 13px 0 10px;
+  font-size: 24px;
+  line-height: 1.15;
+  letter-spacing: -.04em;
+}
+
+.autostart-dialog p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.autostart-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.autostart-dialog-actions .button {
+  min-width: 120px;
+}
+
+.update-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.update-setting > span {
+  display: grid;
+  gap: 4px;
+}
+
+.update-setting small {
+  max-width: 210px;
+}
+
+.update-check-button {
+  flex: 0 0 auto;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--cream);
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.update-check-button:disabled {
+  cursor: wait;
+  opacity: .6;
+}
+
+.update-dialog .update-notes {
+  max-height: 28vh;
+  margin-top: 12px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+.track-meta,
+.track-meta > *,
+.identity,
+.identity strong {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.track-meta h1,
+.track-meta p,
+.track-overline {
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 561px) {
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  #connect-view {
+    height: 100vh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .login-card {
+    padding: clamp(24px, 4.5vh, 60px) clamp(30px, 5vw, 72px);
+  }
+
+  .login-card > .eyebrow {
+    margin-top: clamp(24px, 5vh, 54px);
+  }
+
+  .login-form {
+    margin-top: clamp(22px, 3.8vh, 34px);
+  }
+
+  .login-foot {
+    margin-top: clamp(20px, 4vh, 38px);
+  }
+
+  .player-app {
+    display: flex;
+    width: 100%;
+    max-width: 100vw;
+    min-width: 0;
+    height: 100vh;
+    min-height: 0;
+    overflow: hidden;
+    flex-direction: column;
+  }
+
+  .player-header {
+    width: 100%;
+    min-width: 0;
+    flex: 0 0 auto;
+  }
+
+  .header-right {
+    min-width: 0;
+    max-width: 72%;
+  }
+
+  .identity strong {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .player-main {
+    display: flex;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+    overflow: hidden;
+    padding-top: clamp(18px, 3.5vh, 33px);
+    padding-bottom: clamp(12px, 2.5vh, 25px);
+  }
+
+  .now-playing {
+    min-width: 0;
+    grid-template-columns: minmax(170px, 0.7fr) minmax(0, 1fr);
+    gap: clamp(20px, 3vw, 36px);
+    flex: 0 0 auto;
+    margin: clamp(16px, 3vh, 30px) 0 clamp(14px, 2.5vh, 24px);
+  }
+
+  .album-wrap {
+    width: min(31vh, 345px);
+    max-width: 100%;
+    margin: 0;
+  }
+
+  .track-meta p {
+    margin-bottom: clamp(14px, 2.2vh, 24px);
+  }
+
+  .playback-panel {
+    flex: 0 0 auto;
+    padding-top: clamp(12px, 1.8vh, 18px);
+    padding-bottom: clamp(12px, 2vh, 20px);
+  }
+
+  .history-section {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+    padding-top: clamp(18px, 3vh, 30px);
+  }
+
+  .section-heading {
+    flex: 0 0 auto;
+    margin-bottom: clamp(8px, 1.4vh, 16px);
+  }
+
+  .history-list {
+    height: auto;
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+
+  .player-footer {
+    flex: 0 0 auto;
+    margin-top: clamp(12px, 2vh, 20px);
+    padding-top: 12px;
+  }
+
+  @supports (height: 100dvh) {
+    #connect-view,
+    .player-app {
+      height: 100dvh;
+    }
+  }
+}

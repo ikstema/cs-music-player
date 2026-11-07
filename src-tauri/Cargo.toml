@@ -1,0 +1,35 @@
+[package]
+name = "cityshake-player"
+version = "0.1.4"
+description = "Cityshake Media player client"
+authors = ["Cityshake Media"]
+edition = "2021"
+
+[lib]
+name = "cityshake_player_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-native-audio = "1"
+tauri-plugin-opener = "2"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "cookies", "json", "rustls-tls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["time"] }
+url = "2"
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+rodio = "0.22.2"
+
+[target.'cfg(any(target_os = "macos", target_os = "windows"))'.dependencies]
+keyring = { version = "3.6.3", default-features = false, features = ["apple-native", "windows-native"] }
+tauri-plugin-autostart = "2"
+tauri-plugin-process = "2"
+tauri-plugin-updater = "2"
+
+[patch.crates-io]
+tauri-plugin-native-audio = { path = "vendor/tauri-plugin-native-audio" }

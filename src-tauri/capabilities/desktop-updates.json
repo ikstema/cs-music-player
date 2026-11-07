@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "desktop-updates",
+  "description": "Allow checking, installing, and restarting for signed desktop updates",
+  "windows": ["main"],
+  "platforms": ["macOS", "windows"],
+  "permissions": ["updater:default", "process:allow-restart"]
+}
