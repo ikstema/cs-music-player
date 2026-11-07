@@ -5,6 +5,12 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      android_only:
+        description: Only build Android and attach it to the existing desktop draft
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: write
@@ -12,6 +18,7 @@ permissions:
 jobs:
   desktop:
     name: Build ${{ matrix.platform }} ${{ matrix.arch }}
+    if: ${{ inputs.android_only != true }}
     runs-on: ${{ matrix.platform }}
     strategy:
       fail-fast: false
@@ -76,6 +83,7 @@ jobs:
   android:
     name: Build and sign Android APK
     needs: desktop
+    if: ${{ always() && (inputs.android_only == true || needs.desktop.result == 'success') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -92,6 +100,8 @@ jobs:
           java-version: 17
 
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
       - uses: dtolnay/rust-toolchain@stable
         with:
