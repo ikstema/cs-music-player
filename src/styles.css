@@ -318,26 +318,44 @@ html[data-client-platform="android"] .player-app {
 }
 
 html[data-client-platform="android"] .player-header {
-  flex-wrap: wrap;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    "brand logout settings"
+    "identity identity identity";
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 12px;
   padding: 16px clamp(18px, 4vw, 32px);
 }
 
+html[data-client-platform="android"] .player-header > .player-brand {
+  grid-area: brand;
+  min-width: 0;
+}
+
 html[data-client-platform="android"] .player-header > .header-right {
-  display: flex;
-  max-width: 100%;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px 12px;
+  display: contents;
 }
 
 html[data-client-platform="android"] .player-header .identity {
+  grid-area: identity;
   min-width: 0;
+  max-width: 100%;
+  text-align: left;
+}
+
+html[data-client-platform="android"] .player-header #logout-button {
+  grid-area: logout;
+}
+
+html[data-client-platform="android"] .player-header .player-settings {
+  grid-area: settings;
 }
 
 html[data-client-platform="android"] .player-header .identity strong {
   display: block;
-  max-width: min(48vw, 260px);
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -360,7 +378,7 @@ html[data-client-platform="android"] .now-playing {
 }
 
 html[data-client-platform="android"] .album-wrap {
-  width: min(70vw, 345px);
+  width: min(58vw, 280px);
   margin: 0 auto;
 }
 
