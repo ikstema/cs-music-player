@@ -1,6 +1,6 @@
 [package]
 name = "cityshake-player"
-version = "0.1.13"
+version = "0.1.14"
 description = "Cityshake Media player client"
 authors = ["Cityshake Media"]
 edition = "2021"

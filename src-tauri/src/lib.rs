@@ -24,11 +24,20 @@ enum AudioCommand {
     Play {
         path: std::path::PathBuf,
         volume: f32,
+        fallback_duration: Duration,
     },
     Pause,
     Resume,
     SetVolume(f32),
     Stop,
+}
+
+#[cfg(not(target_os = "android"))]
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct DesktopPlaybackProgress {
+    current_time: f64,
+    duration: f64,
 }
 
 #[derive(Deserialize)]
@@ -166,65 +175,86 @@ impl AppState {
 fn spawn_audio_worker(app: AppHandle, receiver: mpsc::Receiver<AudioCommand>) {
     #[cfg(not(target_os = "android"))]
     std::thread::spawn(move || {
-        use rodio::{Decoder, DeviceSinkBuilder, MixerDeviceSink, Player};
-        use std::fs::{self, File};
-        use std::io::BufReader;
+        use rodio::{MixerDeviceSink, Player};
+        use std::fs;
+        use std::time::Instant;
 
-        let mut output: Option<MixerDeviceSink> = None;
+        let mut _output: Option<MixerDeviceSink> = None;
         let mut sink: Option<Player> = None;
         let mut active = false;
+        let mut paused = false;
         let mut current_file: Option<std::path::PathBuf> = None;
+        let mut current_volume = 1.0;
+        let mut current_duration = Duration::ZERO;
+        let mut last_position = Duration::ZERO;
+        let mut last_progress_at = Instant::now();
+        let mut next_progress_at = Instant::now();
+        let mut next_device_check_at = Instant::now();
+        let mut next_recovery_at = Instant::now();
+        let mut output_device_name: Option<String> = None;
 
         loop {
             match receiver.recv_timeout(Duration::from_millis(120)) {
-                Ok(AudioCommand::Play { path, volume }) => {
+                Ok(AudioCommand::Play {
+                    path,
+                    volume,
+                    fallback_duration,
+                }) => {
                     active = false;
+                    paused = false;
                     if let Some(previous) = sink.take() {
                         previous.stop();
                     }
                     if let Some(previous_file) = current_file.take() {
                         let _ = fs::remove_file(previous_file);
                     }
-                    if output.is_none() {
-                        match DeviceSinkBuilder::open_default_sink() {
-                            Ok(stream) => output = Some(stream),
-                            Err(error) => {
-                                let _ = app.emit("player-playback-error", error.to_string());
-                                continue;
+                    _output = None;
+                    output_device_name = None;
+                    match open_desktop_audio(&path, volume, Duration::ZERO, fallback_duration) {
+                        Ok((stream, player, duration)) => {
+                            output_device_name = default_output_device_name();
+                            _output = Some(stream);
+                            sink = Some(player);
+                            current_duration = duration;
+                            current_volume = volume.clamp(0.0, 1.0);
+                            last_position = Duration::ZERO;
+                            last_progress_at = Instant::now();
+                            next_progress_at = Instant::now();
+                            next_device_check_at = Instant::now();
+                            next_recovery_at = Instant::now();
+                            current_file = Some(path);
+                            active = true;
+                        }
+                        Err(error) => {
+                            if error.starts_with("Не удалось открыть аудиовыход:")
+                            {
+                                current_volume = volume.clamp(0.0, 1.0);
+                                current_duration = fallback_duration;
+                                current_file = Some(path);
+                                last_position = Duration::ZERO;
+                                last_progress_at = Instant::now();
+                                next_recovery_at = Instant::now() + Duration::from_secs(5);
+                                active = true;
+                            } else {
+                                let _ = fs::remove_file(path);
                             }
+                            let _ = app.emit("player-playback-error", error);
                         }
                     }
-                    let file = match File::open(&path) {
-                        Ok(file) => file,
-                        Err(error) => {
-                            let _ = app.emit("player-playback-error", error.to_string());
-                            continue;
-                        }
-                    };
-                    let decoder = match Decoder::try_from(BufReader::new(file)) {
-                        Ok(decoder) => decoder,
-                        Err(error) => {
-                            let _ = app.emit("player-playback-error", error.to_string());
-                            continue;
-                        }
-                    };
-                    let next_sink =
-                        Player::connect_new(output.as_ref().expect("output was opened").mixer());
-                    next_sink.append(decoder);
-                    next_sink.set_volume(volume.clamp(0.0, 1.0));
-                    next_sink.play();
-                    sink = Some(next_sink);
-                    current_file = Some(path);
-                    active = true;
                 }
                 Ok(AudioCommand::Pause) => {
+                    paused = true;
                     if let Some(sink) = sink.as_ref() {
                         sink.pause();
                     }
                 }
                 Ok(AudioCommand::Resume) => {
+                    paused = false;
                     if let Some(sink) = sink.as_ref() {
                         sink.play();
+                        last_progress_at = Instant::now();
+                    } else if active {
+                        next_recovery_at = Instant::now();
                     }
                 }
                 Ok(AudioCommand::SetVolume(volume)) => {
@@ -234,24 +264,132 @@ fn spawn_audio_worker(app: AppHandle, receiver: mpsc::Receiver<AudioCommand>) {
                 }
                 Ok(AudioCommand::Stop) => {
                     active = false;
+                    paused = false;
                     if let Some(sink) = sink.take() {
                         sink.stop();
                     }
                     if let Some(path) = current_file.take() {
                         let _ = fs::remove_file(path);
                     }
+                    _output = None;
+                    output_device_name = None;
                 }
                 Err(mpsc::RecvTimeoutError::Timeout) => {}
                 Err(mpsc::RecvTimeoutError::Disconnected) => break,
             }
 
-            if active && sink.as_ref().is_some_and(Player::empty) {
+            if !active {
+                continue;
+            }
+
+            let now = Instant::now();
+            if sink.as_ref().is_some_and(Player::empty) {
+                if let Some(player) = sink.as_ref() {
+                    last_position = player.get_pos();
+                }
+                let _ = app.emit(
+                    "desktop-playback-progress",
+                    DesktopPlaybackProgress {
+                        current_time: last_position.as_secs_f64(),
+                        duration: current_duration
+                            .as_secs_f64()
+                            .max(last_position.as_secs_f64()),
+                    },
+                );
                 active = false;
                 sink = None;
+                _output = None;
+                output_device_name = None;
                 if let Some(path) = current_file.take() {
                     let _ = fs::remove_file(path);
                 }
                 let _ = app.emit("player-track-ended", ());
+                continue;
+            }
+
+            let mut should_recover = !paused && sink.is_none() && now >= next_recovery_at;
+            if let Some(player) = sink.as_ref() {
+                let position = player.get_pos();
+                if position > last_position {
+                    last_position = position;
+                    last_progress_at = now;
+                }
+
+                if !paused
+                    && !player.is_paused()
+                    && now.duration_since(last_progress_at) >= Duration::from_secs(8)
+                {
+                    should_recover = true;
+                }
+            }
+
+            if now >= next_device_check_at {
+                next_device_check_at = now + Duration::from_secs(2);
+                if let (Some(current), Some(default)) =
+                    (output_device_name.as_ref(), default_output_device_name())
+                {
+                    if current != &default {
+                        should_recover = true;
+                    }
+                }
+            }
+
+            if should_recover && now >= next_recovery_at {
+                next_recovery_at = now + Duration::from_secs(5);
+                if let Some(player) = sink.take() {
+                    player.stop();
+                }
+                _output = None;
+                output_device_name = None;
+                let recovered = current_file
+                    .as_ref()
+                    .ok_or_else(|| "Не найден файл текущего трека.".to_string())
+                    .and_then(|path| {
+                        open_desktop_audio(path, current_volume, last_position, current_duration)
+                    });
+                match recovered {
+                    Ok((stream, player, duration)) => {
+                        output_device_name = default_output_device_name();
+                        _output = Some(stream);
+                        last_position = player.get_pos();
+                        current_duration = duration;
+                        sink = Some(player);
+                        last_progress_at = Instant::now();
+                        next_recovery_at = Instant::now() + Duration::from_secs(5);
+                        let _ = app.emit("player-playback-recovered", ());
+                    }
+                    Err(error) => {
+                        sink = None;
+                        last_progress_at = Instant::now();
+                        let message = if error.starts_with("Не удалось открыть аудиовыход:")
+                        {
+                            format!("Звуковое устройство переподключается: {error}")
+                        } else {
+                            active = false;
+                            if let Some(path) = current_file.take() {
+                                let _ = fs::remove_file(path);
+                            }
+                            error
+                        };
+                        let _ = app.emit("player-playback-error", message);
+                    }
+                }
+            }
+
+            if now >= next_progress_at {
+                next_progress_at = now + Duration::from_millis(500);
+                let position = sink.as_ref().map(Player::get_pos).unwrap_or(last_position);
+                last_position = last_position.max(position);
+                let duration = current_duration
+                    .as_secs_f64()
+                    .max(last_position.as_secs_f64());
+                let _ = app.emit(
+                    "desktop-playback-progress",
+                    DesktopPlaybackProgress {
+                        current_time: last_position.as_secs_f64(),
+                        duration,
+                    },
+                );
             }
         }
     });
@@ -261,6 +399,46 @@ fn spawn_audio_worker(app: AppHandle, receiver: mpsc::Receiver<AudioCommand>) {
         let _ = app;
         drop(receiver);
     }
+}
+
+#[cfg(not(target_os = "android"))]
+fn open_desktop_audio(
+    path: &std::path::Path,
+    volume: f32,
+    start_at: Duration,
+    fallback_duration: Duration,
+) -> Result<(rodio::MixerDeviceSink, rodio::Player, Duration), String> {
+    use rodio::{Decoder, DeviceSinkBuilder, Player, Source};
+    use std::fs::File;
+    use std::io::BufReader;
+
+    let output = DeviceSinkBuilder::open_default_sink()
+        .map_err(|error| format!("Не удалось открыть аудиовыход: {error}"))?;
+    let file = File::open(path).map_err(|error| format!("Не удалось открыть трек: {error}"))?;
+    let mut decoder = Decoder::try_from(BufReader::new(file))
+        .map_err(|error| format!("Не удалось декодировать трек: {error}"))?;
+    let duration = decoder.total_duration().unwrap_or(fallback_duration);
+    if !start_at.is_zero() {
+        decoder
+            .try_seek(start_at)
+            .map_err(|error| format!("Не удалось продолжить трек с текущей позиции: {error}"))?;
+    }
+
+    let player = Player::connect_new(output.mixer());
+    player.append(decoder);
+    player.set_volume(volume.clamp(0.0, 1.0));
+    player.play();
+    Ok((output, player, duration))
+}
+
+#[cfg(not(target_os = "android"))]
+fn default_output_device_name() -> Option<String> {
+    use rodio::cpal::traits::{DeviceTrait, HostTrait};
+    rodio::cpal::default_host()
+        .default_output_device()?
+        .id()
+        .ok()
+        .map(|id| id.to_string())
 }
 
 fn normalized_service_url(value: &str) -> Result<Url, String> {
@@ -335,10 +513,8 @@ fn start_heartbeat(state: &AppState, session: PlayerSession, app: AppHandle) {
                     if let Ok(response) = session.client.get(volume_url.clone()).send().await {
                         if response.status().is_success() {
                             if let Ok(settings) = response.json::<PlayerVolumeSettings>().await {
-                                let previous = volume_revision.swap(
-                                    settings.volume_revision,
-                                    Ordering::Relaxed,
-                                );
+                                let previous = volume_revision
+                                    .swap(settings.volume_revision, Ordering::Relaxed);
                                 if previous != settings.volume_revision {
                                     let _ = app.emit("player-volume-updated", settings);
                                 }
@@ -527,9 +703,7 @@ async fn authenticate_player(
     if let Ok(mut slot) = state.session.lock() {
         *slot = Some(session);
     }
-    state
-        .volume_revision
-        .store(u64::MAX, Ordering::Relaxed);
+    state.volume_revision.store(u64::MAX, Ordering::Relaxed);
     let _ = app.emit("player-session-ready", ());
     Ok(LoginResult {
         player: login.player,
@@ -743,6 +917,7 @@ async fn desktop_play(
     app: AppHandle,
     audio_url: String,
     volume: f32,
+    duration: u32,
 ) -> Result<(), String> {
     let session = state
         .session
@@ -784,6 +959,7 @@ async fn desktop_play(
         .send(AudioCommand::Play {
             path,
             volume: volume.clamp(0.0, 1.0),
+            fallback_duration: Duration::from_secs(duration as u64),
         })
         .map_err(|error| error.to_string())
 }
@@ -829,8 +1005,8 @@ async fn cache_audio_track(
         .map_err(|error| error.to_string())?;
     std::fs::create_dir_all(&cache_dir).map_err(|error| error.to_string())?;
     if let Ok(entries) = std::fs::read_dir(&cache_dir) {
-        let stale_before = std::time::SystemTime::now()
-            .checked_sub(Duration::from_secs(72 * 60 * 60));
+        let stale_before =
+            std::time::SystemTime::now().checked_sub(Duration::from_secs(72 * 60 * 60));
         for entry in entries.flatten() {
             let path = entry.path();
             if !path
@@ -841,7 +1017,12 @@ async fn cache_audio_track(
                 continue;
             }
             let stale = stale_before
-                .zip(entry.metadata().ok().and_then(|metadata| metadata.modified().ok()))
+                .zip(
+                    entry
+                        .metadata()
+                        .ok()
+                        .and_then(|metadata| metadata.modified().ok()),
+                )
                 .is_some_and(|(cutoff, modified)| modified < cutoff);
             if stale {
                 let _ = std::fs::remove_file(path);

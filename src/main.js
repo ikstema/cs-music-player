@@ -140,7 +140,21 @@ async function bindPlaybackEvents() {
   }
 
   await listen('player-track-ended', () => handleTrackEnded())
-  await listen('player-playback-error', ({ payload }) => showError(payload))
+  await listen('desktop-playback-progress', ({ payload }) => {
+    state.nativeCurrentTime = payload.currentTime
+    state.nativeDuration = payload.duration
+    updateProgress()
+  })
+  await listen('player-playback-error', ({ payload }) => {
+    state.startedAt = null
+    setPlaybackState(false)
+    showError(payload)
+  })
+  await listen('player-playback-recovered', () => {
+    playerError.textContent = ''
+    state.startedAt = Date.now()
+    setPlaybackState(true)
+  })
 }
 
 async function login(event) {
@@ -536,7 +550,11 @@ async function playItem(item) {
     await invoke('plugin:native-audio|set_volume', { volume })
     await playNative()
   } else {
-    await invoke('desktop_play', { audioUrl: item.audioUrl, volume })
+    await invoke('desktop_play', {
+      audioUrl: item.audioUrl,
+      volume,
+      duration: Math.max(0, Math.floor(Number(item.duration) || 0)),
+    })
   }
   state.startedAt = Date.now()
   setPlaybackState(true)
@@ -865,10 +883,13 @@ function renderHistory() {
 
 function updateProgress() {
   if (!state.currentItem) return
-  const duration = Number(state.nativeDuration || state.currentItem.duration || 0)
-  const elapsed = isAndroid && Number.isFinite(state.nativeCurrentTime)
+  const elapsed = Number.isFinite(state.nativeCurrentTime)
     ? Number(state.nativeCurrentTime)
     : elapsedSeconds()
+  const duration = Math.max(
+    Number(state.nativeDuration || state.currentItem.duration || 0),
+    elapsed,
+  )
   document.querySelector('#elapsed-time').textContent = formatTime(elapsed)
   if (duration > 0) {
     document.querySelector('#track-duration').textContent = formatTime(duration)
@@ -877,7 +898,7 @@ function updateProgress() {
 }
 
 function elapsedSeconds() {
-  if (isAndroid && Number.isFinite(state.nativeCurrentTime)) return Number(state.nativeCurrentTime)
+  if (Number.isFinite(state.nativeCurrentTime)) return Number(state.nativeCurrentTime)
   return state.elapsedBase + (state.startedAt ? (Date.now() - state.startedAt) / 1000 : 0)
 }
 
