@@ -100,42 +100,44 @@
       </header>
 
       <main class="player-main">
-        <div class="player-kicker">
-          <span>МУЗЫКАЛЬНЫЙ ПЛЕЕР</span>
-          <span class="live-indicator" id="live-indicator"><i></i><span id="live-label">ГОТОВ К ЭФИРУ</span></span>
-        </div>
-
-        <section class="now-playing">
-          <div class="album-wrap">
-            <div class="album-cover" id="album-cover">
-              <div class="cover-fallback" id="cover-fallback"><span>C.</span><small>CITYSHAKE<br />MEDIA</small></div>
-            </div>
-            <span class="album-sheen"></span>
+        <section class="mobile-page-home" data-mobile-page="home" aria-label="Главная">
+          <div class="player-kicker">
+            <span>МУЗЫКАЛЬНЫЙ ПЛЕЕР</span>
+            <span class="live-indicator" id="live-indicator"><i></i><span id="live-label">ГОТОВ К ЭФИРУ</span></span>
           </div>
-          <div class="track-meta">
-            <div class="track-overline" id="track-overline">СЕЙЧАС ЗВУЧИТ</div>
-            <h1 id="track-title">Готовы включить музыку?</h1>
-            <p id="track-artist">Нажмите кнопку, чтобы начать воспроизведение</p>
-            <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
-            <div class="time-row"><span id="elapsed-time">00:00</span><span id="track-duration">--:--</span></div>
+
+          <section class="now-playing">
+            <div class="album-wrap">
+              <div class="album-cover" id="album-cover">
+                <div class="cover-fallback" id="cover-fallback"><span>C.</span><small>CITYSHAKE<br />MEDIA</small></div>
+              </div>
+              <span class="album-sheen"></span>
+            </div>
+            <div class="track-meta">
+              <div class="track-overline" id="track-overline">СЕЙЧАС ЗВУЧИТ</div>
+              <h1 id="track-title">Готовы включить музыку?</h1>
+              <p id="track-artist">Нажмите кнопку, чтобы начать воспроизведение</p>
+              <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+              <div class="time-row"><span id="elapsed-time">00:00</span><span id="track-duration">--:--</span></div>
+            </div>
+          </section>
+
+          <p class="player-error" id="player-error" role="alert" aria-live="polite"></p>
+          <div class="playback-panel">
+            <div class="playback-controls">
+              <button id="play-toggle" class="play-button" type="button" aria-label="Начать эфир">
+                <span id="play-icon" class="play-icon"></span>
+              </button>
+              <div class="play-caption"><strong id="play-label">Начать эфир</strong><span id="play-description">Воспроизведение по вашему плейлисту</span></div>
+            </div>
+            <div class="volume-controls">
+              <label class="volume-control" for="music-volume"><span class="volume-label">Музыка</span><input id="music-volume" type="range" min="0" max="1" step="0.01" value="0.8" aria-label="Громкость музыки" /></label>
+              <label class="volume-control" for="ad-volume"><span class="volume-label">Реклама</span><input id="ad-volume" type="range" min="0" max="1" step="0.01" value="0.8" aria-label="Громкость рекламы" /></label>
+            </div>
           </div>
         </section>
 
-        <p class="player-error" id="player-error" role="alert" aria-live="polite"></p>
-        <div class="playback-panel">
-          <div class="playback-controls">
-            <button id="play-toggle" class="play-button" type="button" aria-label="Начать эфир">
-              <span id="play-icon" class="play-icon"></span>
-            </button>
-            <div class="play-caption"><strong id="play-label">Начать эфир</strong><span id="play-description">Воспроизведение по вашему плейлисту</span></div>
-          </div>
-          <div class="volume-controls">
-            <label class="volume-control" for="music-volume"><span class="volume-label">Музыка</span><input id="music-volume" type="range" min="0" max="1" step="0.01" value="0.8" aria-label="Громкость музыки" /></label>
-            <label class="volume-control" for="ad-volume"><span class="volume-label">Реклама</span><input id="ad-volume" type="range" min="0" max="1" step="0.01" value="0.8" aria-label="Громкость рекламы" /></label>
-          </div>
-        </div>
-
-        <section class="history-section">
+        <section class="history-section" data-mobile-page="played" aria-label="Проигранные">
           <div class="section-heading">
             <div><div class="eyebrow">ЭФИР СЕГОДНЯ</div><h2>Недавно звучало</h2></div>
             <span class="history-count" id="history-count">0 треков</span>
@@ -145,8 +147,28 @@
           </div>
         </section>
 
+        <section class="settings-section" data-mobile-page="settings" aria-label="Настройки">
+          <div class="settings-section-heading">
+            <div class="eyebrow">CITYSHAKE MEDIA</div>
+            <h2>Настройки</h2>
+          </div>
+          <div id="mobile-settings-content"></div>
+        </section>
+
         <footer class="player-footer"><span>CITYSHAKE MEDIA</span><span>МУЗЫКА · ПРОСТРАНСТВО · ВПЕЧАТЛЕНИЕ</span><span id="footer-location"></span></footer>
       </main>
+
+      <nav class="player-bottom-navigation" id="player-navigation" aria-label="Основная навигация">
+        <button type="button" class="mobile-nav-button" data-mobile-screen="home" aria-label="Главная" title="Главная" aria-current="page">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z" /></svg>
+        </button>
+        <button type="button" class="mobile-nav-button" data-mobile-screen="played" aria-label="Проигранные" title="Проигранные">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16M4 10h16M4 15h10M4 20h10" /><circle cx="18" cy="17" r="3" /><path d="M18 15v2l1.2 1" /></svg>
+        </button>
+        <button type="button" class="mobile-nav-button" data-mobile-screen="settings" aria-label="Настройки" title="Настройки">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h7m4 0h5M4 17h3m4 0h9" /><circle cx="13" cy="7" r="2" /><circle cx="9" cy="17" r="2" /></svg>
+        </button>
+      </nav>
     </div>
 
     <dialog class="autostart-dialog" id="autostart-dialog" aria-labelledby="autostart-title">

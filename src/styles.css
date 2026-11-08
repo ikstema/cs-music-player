@@ -429,3 +429,158 @@ html[data-client-platform="android"] .player-footer {
 html[data-player-theme="light"] .player-error {
   color: #982f2f;
 }
+
+.mobile-page-home {
+  display: contents;
+}
+
+.settings-section,
+.player-bottom-navigation {
+  display: none;
+}
+
+html[data-client-platform="android"] .player-footer {
+  display: none;
+}
+
+html[data-client-platform="android"] .player-header {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "brand logout"
+    "identity identity";
+}
+
+html[data-client-platform="android"] .player-main {
+  padding: 20px clamp(18px, 5vw, 28px) max(104px, calc(88px + env(safe-area-inset-bottom, 0px)));
+}
+
+html[data-client-platform="android"] .mobile-page-home {
+  display: block;
+}
+
+html[data-client-platform="android"] .album-wrap {
+  width: min(52vw, 240px);
+}
+
+html[data-client-platform="android"] .track-meta h1 {
+  font-size: clamp(28px, 7.2vw, 40px);
+  line-height: 1.08;
+}
+
+html[data-client-platform="android"] .history-list {
+  height: auto;
+  max-height: none;
+  overflow: visible;
+  scrollbar-gutter: auto;
+}
+
+html[data-client-platform="android"] .settings-section {
+  display: block;
+  min-height: calc(100vh - 150px);
+  padding-top: 8px;
+}
+
+html[data-client-platform="android"] .settings-section-heading {
+  margin: 0 0 20px;
+}
+
+html[data-client-platform="android"] .settings-section-heading .eyebrow {
+  margin-bottom: 8px;
+}
+
+html[data-client-platform="android"] .settings-section-heading h2 {
+  margin: 0;
+  font-size: 27px;
+  font-weight: 600;
+  letter-spacing: -.045em;
+}
+
+html[data-client-platform="android"] .settings-section .player-settings {
+  display: block;
+  width: 100%;
+}
+
+html[data-client-platform="android"] .settings-section .player-settings > summary {
+  display: none;
+}
+
+html[data-client-platform="android"] .settings-section .player-settings-panel {
+  position: static;
+  width: 100%;
+  padding: 7px;
+  border-radius: 14px;
+}
+
+html[data-client-platform="android"] .settings-section .player-setting-row {
+  min-height: 58px;
+  padding: 13px 12px;
+}
+
+html[data-client-platform="android"] .settings-section .update-setting {
+  align-items: center;
+}
+
+html[data-client-platform="android"] .settings-section .update-setting small {
+  max-width: 190px;
+}
+
+html[data-client-platform="android"] .player-bottom-navigation {
+  position: fixed;
+  z-index: 50;
+  right: 14px;
+  bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  left: 14px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: min(380px, calc(100% - 28px));
+  min-height: 66px;
+  margin: 0 auto;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--panel);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, .24);
+}
+
+html[data-client-platform="android"] .mobile-nav-button {
+  display: grid;
+  min-width: 48px;
+  min-height: 52px;
+  place-items: center;
+  border: 0;
+  border-radius: 13px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html[data-client-platform="android"] .mobile-nav-button[aria-current="page"] {
+  background: rgba(134, 155, 126, .16);
+  color: var(--sage);
+}
+
+html[data-client-platform="android"] .mobile-nav-button svg {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+html[data-client-platform="android"][data-mobile-screen="home"] [data-mobile-page="played"],
+html[data-client-platform="android"][data-mobile-screen="home"] [data-mobile-page="settings"],
+html[data-client-platform="android"][data-mobile-screen="played"] [data-mobile-page="home"],
+html[data-client-platform="android"][data-mobile-screen="played"] [data-mobile-page="settings"],
+html[data-client-platform="android"][data-mobile-screen="settings"] [data-mobile-page="home"],
+html[data-client-platform="android"][data-mobile-screen="settings"] [data-mobile-page="played"] {
+  display: none !important;
+}
+
+@supports (height: 100dvh) {
+  html[data-client-platform="android"] .settings-section {
+    min-height: calc(100dvh - 150px);
+  }
+}

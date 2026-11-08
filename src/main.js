@@ -18,7 +18,10 @@ const AD_VOLUME_KEY = 'cityshake-player.ad-volume'
 const AUTOSTART_ASKED_KEY = 'cityshake-player.autostart-asked'
 const WINDOW_SIZE_KEY = 'cityshake-player.window-size'
 const isAndroid = /Android/i.test(navigator.userAgent)
-if (isAndroid) document.documentElement.dataset.clientPlatform = 'android'
+if (isAndroid) {
+  document.documentElement.dataset.clientPlatform = 'android'
+  document.documentElement.dataset.mobileScreen = 'home'
+}
 const loginForm = document.querySelector('#connect-form')
 const usernameInput = document.querySelector('#player-username')
 const passwordInput = document.querySelector('#player-password')
@@ -53,6 +56,14 @@ const updateInstallButton = document.querySelector('#update-install')
 const logoutDialog = document.querySelector('#logout-dialog')
 const logoutCancelButton = document.querySelector('#logout-cancel')
 const logoutConfirmButton = document.querySelector('#logout-confirm')
+const mobileNavigation = document.querySelector('#player-navigation')
+const mobileSettingsContent = document.querySelector('#mobile-settings-content')
+const mobileNavigationButtons = [...mobileNavigation.querySelectorAll('[data-mobile-screen]')]
+
+if (isAndroid) {
+  mobileSettingsContent.append(playerSettings)
+  playerSettings.open = true
+}
 
 const initialMusicVolume = readVolume(MUSIC_VOLUME_KEY, 0.8)
 let adVolumeSaved = hasSavedVolume(AD_VOLUME_KEY)
@@ -97,11 +108,23 @@ logoutConfirmButton.addEventListener('click', async () => {
   logoutDialog.close()
   await logout()
 })
-document.addEventListener('pointerdown', (event) => {
-  if (playerSettings.open && !playerSettings.contains(event.target)) playerSettings.open = false
-})
-document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape' && playerSettings.open) playerSettings.open = false
+if (!isAndroid) {
+  document.addEventListener('pointerdown', (event) => {
+    if (playerSettings.open && !playerSettings.contains(event.target)) playerSettings.open = false
+  })
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && playerSettings.open) playerSettings.open = false
+  })
+}
+mobileNavigation.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-mobile-screen]')
+  if (!button || !isAndroid) return
+  document.documentElement.dataset.mobileScreen = button.dataset.mobileScreen
+  mobileNavigationButtons.forEach((item) => {
+    if (item === button) item.setAttribute('aria-current', 'page')
+    else item.removeAttribute('aria-current')
+  })
+  window.scrollTo(0, 0)
 })
 document.querySelector('#retry-restore').addEventListener('click', restoreSavedAccount)
 autostartToggle.addEventListener('change', updateAutostartSetting)
