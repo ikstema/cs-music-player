@@ -73,7 +73,7 @@ jobs:
           projectPath: .
           tagName: v__VERSION__
           releaseName: Cityshake Player v__VERSION__
-          releaseBody: Signed installers for macOS and Windows. The Android APK is attached after the desktop builds finish.
+          releaseBody: Cityshake Player application update.
           releaseDraft: true
           prerelease: false
           uploadUpdaterJson: true

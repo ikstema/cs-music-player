@@ -125,13 +125,6 @@ body {
   opacity: .6;
 }
 
-.update-dialog .update-notes {
-  max-height: 28vh;
-  margin-top: 12px;
-  overflow: auto;
-  white-space: pre-wrap;
-}
-
 .track-meta,
 .track-meta > *,
 .identity,

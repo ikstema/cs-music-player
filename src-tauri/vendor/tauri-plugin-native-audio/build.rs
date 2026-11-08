@@ -14,6 +14,7 @@ const COMMANDS: &[&str] = &[
     "get_progress_checkpoint",
     "clear_progress_checkpoint",
     "dispose",
+    "install_update",
 ];
 
 fn main() {

@@ -16,6 +16,7 @@ import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.ForwardingPlayer
@@ -32,6 +33,10 @@ import app.tauri.plugin.Invoke
 import app.tauri.plugin.JSObject
 import app.tauri.plugin.Plugin
 import kotlin.math.max
+import java.io.File
+import java.io.IOException
+import java.net.HttpURLConnection
+import java.net.URL
 
 private const val TAG = "plugin/native-audio"
 private const val EVENT_STATE = "native_audio_state"
@@ -94,6 +99,11 @@ class SetVolumeArgs {
 class SaveCredentialsArgs {
     var username: String? = null
     var password: String? = null
+}
+
+@InvokeArg
+class InstallUpdateArgs {
+    var url: String? = null
 }
 
 private data class PendingSeekState(
@@ -293,12 +303,22 @@ object NativeAudioRuntime {
         synchronized(lock) {
             ensure(context)
             val exoPlayer = player ?: return
+            val previousSourcePath = exoPlayer.currentMediaItem?.localConfiguration?.uri?.path
 
             val mediaItem = buildMediaItem(src, title, artist, artworkUrl)
 
             pendingSeekState = null
             currentStoryId = storyId?.takeIf { it > 0 }
             exoPlayer.setMediaItem(mediaItem)
+            previousSourcePath?.let { path ->
+                runCatching {
+                    val previousFile = File(path)
+                    if (previousFile.parentFile?.canonicalFile == context.cacheDir.canonicalFile &&
+                        previousFile.name.startsWith("cityshake-audio-") && previousFile.name.endsWith(".mp3")) {
+                        previousFile.delete()
+                    }
+                }
+            }
             exoPlayer.prepare()
             lastError = null
             syncTickingLocked()
@@ -749,6 +769,92 @@ class NativeAudioPlugin(private val activity: Activity) : Plugin(activity) {
         }.onFailure {
             invoke.reject(it.message ?: "clearCredentials failed")
         }
+    }
+
+    @Command
+    fun installUpdate(invoke: Invoke) {
+        val args = invoke.parseArgs(InstallUpdateArgs::class.java)
+        val source = args.url?.trim().orEmpty()
+        val sourceUri = runCatching { Uri.parse(source) }.getOrNull()
+        if (sourceUri == null || sourceUri.scheme != "https" || sourceUri.host != "github.com" ||
+            !sourceUri.path.orEmpty().startsWith("/ikstema/cs-music-player/releases/download/") ||
+            !sourceUri.path.orEmpty().endsWith(".apk")) {
+            invoke.reject("Ссылка на обновление APK не прошла проверку.")
+            return
+        }
+
+        Thread {
+            val temporaryApk = File(activity.cacheDir, "cityshake-player-update.apk.part")
+            try {
+                val connection = (URL(source).openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 15_000
+                    readTimeout = 60_000
+                    instanceFollowRedirects = true
+                    requestMethod = "GET"
+                }
+                try {
+                    val response = connection
+                    val finalUri = Uri.parse(response.url.toString())
+                    val allowedHosts = setOf(
+                        "github.com",
+                        "release-assets.githubusercontent.com",
+                        "objects.githubusercontent.com",
+                    )
+                    val finalHost = finalUri.host.orEmpty()
+                    if (finalUri.scheme != "https" || finalHost !in allowedHosts) {
+                        throw IOException("Сервер перенаправил загрузку на неизвестный адрес.")
+                    }
+                    if (response.responseCode !in 200..299) {
+                        throw IOException("Не удалось скачать обновление (HTTP ${response.responseCode}).")
+                    }
+                    response.inputStream.use { input ->
+                        temporaryApk.outputStream().use { output ->
+                            val buffer = ByteArray(64 * 1024)
+                            var total = 0L
+                            while (true) {
+                                val count = input.read(buffer)
+                                if (count < 0) break
+                                total += count
+                                if (total > 300L * 1024 * 1024) {
+                                    throw IOException("Файл обновления превышает допустимый размер.")
+                                }
+                                output.write(buffer, 0, count)
+                            }
+                            if (total == 0L) throw IOException("Сервер вернул пустой APK.")
+                        }
+                    }
+                } finally {
+                    connection.disconnect()
+                }
+
+                val apk = File(activity.cacheDir, "cityshake-player-update.apk")
+                if (apk.exists() && !apk.delete()) throw IOException("Не удалось заменить предыдущий APK.")
+                if (!temporaryApk.renameTo(apk)) throw IOException("Не удалось сохранить APK в кэш приложения.")
+
+                val apkUri = FileProvider.getUriForFile(
+                    activity.applicationContext,
+                    "${activity.packageName}.fileprovider",
+                    apk,
+                )
+                val installIntent = Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(apkUri, "application/vnd.android.package-archive")
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                activity.runOnUiThread {
+                    runCatching {
+                        activity.startActivity(installIntent)
+                        invoke.resolve()
+                    }.onFailure {
+                        invoke.reject(it.message ?: "Не удалось открыть установщик Android.")
+                    }
+                }
+            } catch (error: Exception) {
+                temporaryApk.delete()
+                activity.runOnUiThread {
+                    invoke.reject(error.message ?: "Не удалось скачать обновление APK.")
+                }
+            }
+        }.start()
     }
 
     @Command

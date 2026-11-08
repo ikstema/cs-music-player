@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getVersion } from '@tauri-apps/api/app'
-import { openUrl } from '@tauri-apps/plugin-opener'
+import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window'
 import {
   addStateListener,
   dispose,
@@ -16,6 +16,7 @@ const SERVICE_URL = 'https://player.cityshake.media'
 const MUSIC_VOLUME_KEY = 'cityshake-player.music-volume'
 const AD_VOLUME_KEY = 'cityshake-player.ad-volume'
 const AUTOSTART_ASKED_KEY = 'cityshake-player.autostart-asked'
+const WINDOW_SIZE_KEY = 'cityshake-player.window-size'
 const isAndroid = /Android/i.test(navigator.userAgent)
 if (isAndroid) document.documentElement.dataset.clientPlatform = 'android'
 const loginForm = document.querySelector('#connect-form')
@@ -47,7 +48,6 @@ const playerSettings = document.querySelector('.player-settings')
 const updateStatus = document.querySelector('#update-status')
 const updateDialog = document.querySelector('#update-dialog')
 const updateMessage = document.querySelector('#update-message')
-const updateNotes = document.querySelector('#update-notes')
 const updateLaterButton = document.querySelector('#update-later')
 const updateInstallButton = document.querySelector('#update-install')
 
@@ -60,6 +60,7 @@ let checkingForUpdates = false
 let playbackRetryTimer = null
 let playbackRetryAttempt = 0
 let isLoggingOut = false
+let volumeSyncTimer = null
 
 const state = {
   player: null,
@@ -74,6 +75,7 @@ const state = {
   history: [],
   musicVolume: initialMusicVolume,
   adVolume: readVolume(AD_VOLUME_KEY, initialMusicVolume),
+  volumeRevision: null,
 }
 
 musicVolumeInput.value = String(state.musicVolume)
@@ -116,6 +118,7 @@ window.setInterval(updateProgress, 500)
 
 async function bindPlaybackEvents() {
   await listen('player-session-error', ({ payload }) => showError(payload))
+  await listen('player-volume-updated', ({ payload }) => applyPlayerVolumeSettings(payload))
   if (isAndroid) {
     await addStateListener((nativeState) => {
       state.nativeCurrentTime = nativeState.currentTime
@@ -168,6 +171,7 @@ async function login(event) {
 }
 
 async function initializeApp() {
+  await restoreDesktopWindowSize().catch((error) => console.warn('Не удалось восстановить размер окна:', error))
   try {
     await initializeAutostartSetting()
   } catch {
@@ -212,7 +216,6 @@ async function checkDesktopRelease(manual) {
   updateStatus.textContent = `Доступна версия ${pendingDesktopUpdate.version}.`
   await showUpdatePrompt({
     version: pendingDesktopUpdate.version,
-    notes: pendingDesktopUpdate.body,
     actionLabel: 'Установить',
   })
 }
@@ -239,24 +242,18 @@ async function checkAndroidRelease(manual) {
   }
 
   pendingDesktopUpdate = null
-  pendingAndroidUpdate = { version: release.tag_name, notes: release.body, downloadUrl: downloadUrl.href }
+  pendingAndroidUpdate = { version: release.tag_name, downloadUrl: downloadUrl.href }
   updateStatus.textContent = `Доступна версия ${release.tag_name}.`
-  await showUpdatePrompt({
-    version: release.tag_name,
-    notes: release.body,
-    actionLabel: 'Скачать APK',
-  })
+  await showUpdatePrompt({ version: release.tag_name, actionLabel: 'Обновить' })
 }
 
-async function showUpdatePrompt({ version, notes, actionLabel }) {
+async function showUpdatePrompt({ version, actionLabel }) {
   if (autostartDialog.open) {
     await new Promise((resolve) => autostartDialog.addEventListener('close', resolve, { once: true }))
   }
   if (updateDialog.open) return
 
   updateMessage.textContent = `Доступна версия ${version}. Установить обновление сейчас?`
-  updateNotes.textContent = notes?.trim() || ''
-  updateNotes.hidden = !updateNotes.textContent
   updateInstallButton.textContent = actionLabel
   updateInstallButton.disabled = false
   updateDialog.showModal()
@@ -265,11 +262,14 @@ async function showUpdatePrompt({ version, notes, actionLabel }) {
 async function installAvailableUpdate() {
   updateInstallButton.disabled = true
   if (pendingAndroidUpdate) {
+    updateInstallButton.textContent = 'Скачиваем обновление…'
     try {
-      await openUrl(pendingAndroidUpdate.downloadUrl)
+      await invoke('plugin:native-audio|install_update', { url: pendingAndroidUpdate.downloadUrl })
       updateDialog.close()
+      updateStatus.textContent = 'Подтвердите установку в системном окне Android.'
     } catch (error) {
-      updateStatus.textContent = 'Не удалось открыть загрузку APK.'
+      updateStatus.textContent = `Не удалось установить обновление: ${errorText(error)}`
+      updateInstallButton.textContent = 'Повторить'
       updateInstallButton.disabled = false
     }
     return
@@ -401,7 +401,13 @@ function showRestoreError(error) {
 async function enterPlayer(result) {
   const identity = normalizePlayerIdentity(result.player)
   state.player = { ...result.player, ...identity }
+  state.volumeRevision = null
   persistInitialVolumeLevels()
+  try {
+    applyPlayerVolumeSettings(await invoke('get_player_volume'))
+  } catch (error) {
+    console.warn('Не удалось получить настройки громкости плеера:', error)
+  }
   document.querySelector('#connection-label').textContent = [identity.client, identity.location, identity.name]
     .filter(Boolean)
     .join(' · ')
@@ -511,8 +517,9 @@ async function playItem(item) {
 
   const volume = volumeForItem(item)
   if (isAndroid) {
+    const cachedAudioUrl = await invoke('cache_audio_track', { audioUrl: item.audioUrl })
     await setSource({
-      src: item.audioUrl,
+      src: cachedAudioUrl,
       id: Date.now(),
       title: item.title,
       artist: item.artist || 'Cityshake Media',
@@ -578,6 +585,10 @@ async function togglePlayback() {
 async function logout() {
   isLoggingOut = true
   clearPlaybackRetry(true)
+  if (volumeSyncTimer !== null) {
+    clearTimeout(volumeSyncTimer)
+    volumeSyncTimer = null
+  }
   playerError.textContent = ''
   try {
     if (isAndroid) await invoke('plugin:native-audio|clear_credentials')
@@ -600,6 +611,7 @@ async function logout() {
     showError(error)
   }
   state.player = null
+  state.volumeRevision = null
   isLoggingOut = false
   state.history = []
   setTrack(null)
@@ -719,6 +731,73 @@ function updateVolume(type, rawValue) {
     const command = isAndroid ? 'plugin:native-audio|set_volume' : 'desktop_set_volume'
     invoke(command, { volume }).catch(showError)
   }
+  scheduleVolumeSync()
+}
+
+function scheduleVolumeSync() {
+  if (!state.player) return
+  if (volumeSyncTimer !== null) clearTimeout(volumeSyncTimer)
+  volumeSyncTimer = window.setTimeout(async () => {
+    volumeSyncTimer = null
+    try {
+      const settings = await invoke('set_player_volumes', {
+        musicVolume: state.musicVolume,
+        adVolume: state.adVolume,
+      })
+      state.volumeRevision = Number(settings.volumeRevision)
+    } catch (error) {
+      console.warn('Не удалось сохранить громкость плеера:', error)
+    }
+  }, 350)
+}
+
+function applyPlayerVolumeSettings(settings) {
+  const musicVolume = Number(settings?.musicVolume)
+  const adVolume = Number(settings?.adVolume)
+  const revision = Number(settings?.volumeRevision)
+  if (!Number.isFinite(musicVolume) || !Number.isFinite(adVolume)) return
+  if (Number.isFinite(revision) && revision === state.volumeRevision) return
+
+  state.musicVolume = clamp(musicVolume)
+  state.adVolume = clamp(adVolume)
+  state.volumeRevision = Number.isFinite(revision) ? revision : null
+  adVolumeSaved = true
+  musicVolumeInput.value = String(state.musicVolume)
+  adVolumeInput.value = String(state.adVolume)
+  localStorage.setItem(MUSIC_VOLUME_KEY, String(state.musicVolume))
+  localStorage.setItem(AD_VOLUME_KEY, String(state.adVolume))
+
+  if (state.currentItem) {
+    const command = isAndroid ? 'plugin:native-audio|set_volume' : 'desktop_set_volume'
+    invoke(command, { volume: volumeForItem(state.currentItem) }).catch(showError)
+  }
+}
+
+async function restoreDesktopWindowSize() {
+  if (isAndroid) return
+
+  const appWindow = getCurrentWindow()
+  const saved = localStorage.getItem(WINDOW_SIZE_KEY)
+  if (saved) {
+    try {
+      const { width, height } = JSON.parse(saved)
+      if (Number.isFinite(width) && Number.isFinite(height) && width >= 760 && height >= 760 && width <= 5000 && height <= 5000) {
+        await appWindow.setSize(new LogicalSize(width, height))
+      }
+    } catch {
+      localStorage.removeItem(WINDOW_SIZE_KEY)
+    }
+  }
+
+  await appWindow.onResized(async ({ payload }) => {
+    if (await appWindow.isMaximized()) return
+    const scaleFactor = await appWindow.scaleFactor()
+    const width = Math.round(payload.width / scaleFactor)
+    const height = Math.round(payload.height / scaleFactor)
+    if (width >= 760 && height >= 760) {
+      localStorage.setItem(WINDOW_SIZE_KEY, JSON.stringify({ width, height }))
+    }
+  })
 }
 
 function volumeForItem(item) {

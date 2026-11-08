@@ -17,4 +17,5 @@ permissions = [
   "allow-get-progress-checkpoint",
   "allow-clear-progress-checkpoint",
   "allow-dispose",
+  "allow-install-update",
 ]

@@ -1,7 +1,7 @@
 use reqwest::cookie::Jar;
 use reqwest::{Client, Response, Url};
 use serde::{Deserialize, Serialize};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -16,6 +16,7 @@ struct PlayerSession {
 struct AppState {
     session: Mutex<Option<PlayerSession>>,
     heartbeat_stop: Mutex<Option<Arc<AtomicBool>>>,
+    volume_revision: Arc<AtomicU64>,
     audio_commands: mpsc::Sender<AudioCommand>,
 }
 
@@ -81,6 +82,19 @@ struct PlaybackResult {
     message: String,
 }
 
+#[derive(Deserialize, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct PlayerVolumeSettings {
+    #[serde(alias = "music_volume")]
+    music_volume: f32,
+    #[serde(alias = "ad_volume")]
+    ad_volume: f32,
+    #[serde(alias = "volume_revision")]
+    volume_revision: u64,
+    #[serde(default, alias = "volume_updated_at")]
+    volume_updated_at: String,
+}
+
 #[derive(Deserialize)]
 struct ApiError {
     error: Option<String>,
@@ -143,6 +157,7 @@ impl AppState {
         Self {
             session: Mutex::new(None),
             heartbeat_stop: Mutex::new(None),
+            volume_revision: Arc::new(AtomicU64::new(u64::MAX)),
             audio_commands,
         }
     }
@@ -294,9 +309,13 @@ fn start_heartbeat(state: &AppState, session: PlayerSession, app: AppHandle) {
     if let Ok(mut slot) = state.heartbeat_stop.lock() {
         *slot = Some(stop.clone());
     }
+    let volume_revision = state.volume_revision.clone();
 
     tauri::async_runtime::spawn(async move {
         let Ok(url) = service_endpoint(&session.base_url, "api/player/heartbeat/") else {
+            return;
+        };
+        let Ok(volume_url) = service_endpoint(&session.base_url, "api/player/volume/") else {
             return;
         };
         loop {
@@ -312,7 +331,21 @@ fn start_heartbeat(state: &AppState, session: PlayerSession, app: AppHandle) {
                 .send()
                 .await
             {
-                Ok(response) if response.status().is_success() => {}
+                Ok(response) if response.status().is_success() => {
+                    if let Ok(response) = session.client.get(volume_url.clone()).send().await {
+                        if response.status().is_success() {
+                            if let Ok(settings) = response.json::<PlayerVolumeSettings>().await {
+                                let previous = volume_revision.swap(
+                                    settings.volume_revision,
+                                    Ordering::Relaxed,
+                                );
+                                if previous != settings.volume_revision {
+                                    let _ = app.emit("player-volume-updated", settings);
+                                }
+                            }
+                        }
+                    }
+                }
                 Ok(response)
                     if response.status().as_u16() == 401
                         || response.status().as_u16() == 403
@@ -453,13 +486,23 @@ async fn authenticate_player(
     let jar = Arc::new(Jar::default());
     let client = Client::builder()
         .cookie_provider(jar)
-        .user_agent("CityshakePlayer/0.1")
+        .user_agent(format!("CityshakePlayer/{}", env!("CARGO_PKG_VERSION")))
         .build()
         .map_err(|error| error.to_string())?;
     let url = service_endpoint(&base_url, "api/player/native/login/")?;
+    let platform = client_platform();
     let response = client
         .post(url)
-        .json(&serde_json::json!({ "username": username.trim(), "password": password }))
+        .json(&serde_json::json!({
+            "username": username.trim(),
+            "password": password,
+            "platform": platform,
+            "client_platform": platform,
+            "app_version": env!("CARGO_PKG_VERSION"),
+            "app_build": env!("CARGO_PKG_VERSION"),
+            "operating_system": std::env::consts::OS,
+            "architecture": std::env::consts::ARCH,
+        }))
         .send()
         .await
         .map_err(|error| format!("Не удалось связаться с сервисом: {error}"))?;
@@ -484,10 +527,103 @@ async fn authenticate_player(
     if let Ok(mut slot) = state.session.lock() {
         *slot = Some(session);
     }
+    state
+        .volume_revision
+        .store(u64::MAX, Ordering::Relaxed);
     let _ = app.emit("player-session-ready", ());
     Ok(LoginResult {
         player: login.player,
     })
+}
+
+fn client_platform() -> &'static str {
+    #[cfg(target_os = "android")]
+    return "android";
+    #[cfg(target_os = "macos")]
+    return "macos";
+    #[cfg(target_os = "windows")]
+    return "windows";
+    #[cfg(target_os = "ios")]
+    return "ios";
+    #[cfg(target_os = "linux")]
+    return "linux";
+    #[allow(unreachable_code)]
+    "app"
+}
+
+async fn request_player_volume(
+    session: &PlayerSession,
+    body: Option<serde_json::Value>,
+) -> Result<PlayerVolumeSettings, String> {
+    let url = service_endpoint(&session.base_url, "api/player/volume/")?;
+    let request = match body {
+        Some(body) => session
+            .client
+            .post(url)
+            .header("X-CSRFToken", &session.csrf_token)
+            .header("Origin", session.base_url.origin().ascii_serialization())
+            .json(&body),
+        None => session.client.get(url),
+    };
+    let response = request
+        .send()
+        .await
+        .map_err(|error| format!("Не удалось получить настройки громкости: {error}"))?;
+    if !response.status().is_success() {
+        return Err(response_error(response).await);
+    }
+    response
+        .json::<PlayerVolumeSettings>()
+        .await
+        .map_err(|error| format!("Некорректный ответ настроек громкости: {error}"))
+}
+
+#[tauri::command]
+async fn get_player_volume(state: State<'_, AppState>) -> Result<PlayerVolumeSettings, String> {
+    let session = state
+        .session
+        .lock()
+        .map_err(|_| "Не удалось получить сессию.".to_string())?
+        .clone()
+        .ok_or("Войдите в аккаунт устройства.")?;
+    let settings = request_player_volume(&session, None).await?;
+    state
+        .volume_revision
+        .store(settings.volume_revision, Ordering::Relaxed);
+    Ok(settings)
+}
+
+#[tauri::command]
+async fn set_player_volumes(
+    state: State<'_, AppState>,
+    music_volume: f32,
+    ad_volume: f32,
+) -> Result<PlayerVolumeSettings, String> {
+    if !music_volume.is_finite()
+        || !ad_volume.is_finite()
+        || !(0.0..=1.0).contains(&music_volume)
+        || !(0.0..=1.0).contains(&ad_volume)
+    {
+        return Err("Громкость должна быть от 0 до 100%.".into());
+    }
+    let session = state
+        .session
+        .lock()
+        .map_err(|_| "Не удалось получить сессию.".to_string())?
+        .clone()
+        .ok_or("Войдите в аккаунт устройства.")?;
+    let settings = request_player_volume(
+        &session,
+        Some(serde_json::json!({
+            "music_volume": music_volume,
+            "ad_volume": ad_volume,
+        })),
+    )
+    .await?;
+    state
+        .volume_revision
+        .store(settings.volume_revision, Ordering::Relaxed);
+    Ok(settings)
 }
 
 #[tauri::command]
@@ -653,6 +789,77 @@ async fn desktop_play(
 }
 
 #[tauri::command]
+async fn cache_audio_track(
+    state: State<'_, AppState>,
+    app: AppHandle,
+    audio_url: String,
+) -> Result<String, String> {
+    let session = state
+        .session
+        .lock()
+        .map_err(|_| "Не удалось получить сессию.".to_string())?
+        .clone()
+        .ok_or("Войдите в аккаунт устройства.")?;
+    let audio_url =
+        Url::parse(&audio_url).map_err(|_| "Некорректная ссылка на аудио.".to_string())?;
+    if audio_url.origin() != session.base_url.origin()
+        || (audio_url.scheme() != "https" && audio_url.scheme() != "http")
+    {
+        return Err("Ссылка на аудио не относится к сервису Cityshake.".into());
+    }
+    let response = session
+        .client
+        .get(audio_url)
+        .send()
+        .await
+        .map_err(|error| format!("Не удалось загрузить трек: {error}"))?;
+    if !response.status().is_success() {
+        return Err(response_error(response).await);
+    }
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|error| format!("Не удалось загрузить аудио: {error}"))?;
+    if bytes.is_empty() {
+        return Err("Сервис вернул пустой аудиофайл.".into());
+    }
+    let cache_dir = app
+        .path()
+        .app_cache_dir()
+        .map_err(|error| error.to_string())?;
+    std::fs::create_dir_all(&cache_dir).map_err(|error| error.to_string())?;
+    if let Ok(entries) = std::fs::read_dir(&cache_dir) {
+        let stale_before = std::time::SystemTime::now()
+            .checked_sub(Duration::from_secs(72 * 60 * 60));
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.starts_with("cityshake-audio-") && name.ends_with(".mp3"))
+            {
+                continue;
+            }
+            let stale = stale_before
+                .zip(entry.metadata().ok().and_then(|metadata| metadata.modified().ok()))
+                .is_some_and(|(cutoff, modified)| modified < cutoff);
+            if stale {
+                let _ = std::fs::remove_file(path);
+            }
+        }
+    }
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|error| error.to_string())?
+        .as_nanos();
+    let path = cache_dir.join(format!("cityshake-audio-{stamp}.mp3"));
+    std::fs::write(&path, bytes).map_err(|error| error.to_string())?;
+    Url::from_file_path(path)
+        .map(|url| url.to_string())
+        .map_err(|_| "Не удалось подготовить локальный файл аудио.".to_string())
+}
+
+#[tauri::command]
 fn desktop_set_volume(state: State<'_, AppState>, volume: f32) -> Result<(), String> {
     state
         .audio_commands
@@ -712,9 +919,12 @@ pub fn run() {
             autostart_supported,
             get_autostart_enabled,
             set_autostart_enabled,
+            get_player_volume,
+            set_player_volumes,
             start_playback,
             complete_current,
             desktop_play,
+            cache_audio_track,
             desktop_set_volume,
             desktop_pause,
             desktop_resume,
