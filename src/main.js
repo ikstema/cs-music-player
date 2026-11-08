@@ -50,6 +50,9 @@ const updateDialog = document.querySelector('#update-dialog')
 const updateMessage = document.querySelector('#update-message')
 const updateLaterButton = document.querySelector('#update-later')
 const updateInstallButton = document.querySelector('#update-install')
+const logoutDialog = document.querySelector('#logout-dialog')
+const logoutCancelButton = document.querySelector('#logout-cancel')
+const logoutConfirmButton = document.querySelector('#logout-confirm')
 
 const initialMusicVolume = readVolume(MUSIC_VOLUME_KEY, 0.8)
 let adVolumeSaved = hasSavedVolume(AD_VOLUME_KEY)
@@ -87,7 +90,13 @@ document.querySelector('#autoplay-on-entry').checked = localStorage.getItem('cit
 loginForm.addEventListener('submit', login)
 loginForm.hidden = true
 playButton.addEventListener('click', togglePlayback)
-document.querySelector('#logout-button').addEventListener('click', logout)
+document.querySelector('#logout-button').addEventListener('click', requestLogout)
+document.querySelector('#restore-logout').addEventListener('click', requestLogout)
+logoutCancelButton.addEventListener('click', () => logoutDialog.close())
+logoutConfirmButton.addEventListener('click', async () => {
+  logoutDialog.close()
+  await logout()
+})
 document.addEventListener('pointerdown', (event) => {
   if (playerSettings.open && !playerSettings.contains(event.target)) playerSettings.open = false
 })
@@ -95,7 +104,6 @@ document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && playerSettings.open) playerSettings.open = false
 })
 document.querySelector('#retry-restore').addEventListener('click', restoreSavedAccount)
-document.querySelector('#restore-logout').addEventListener('click', logout)
 autostartToggle.addEventListener('change', updateAutostartSetting)
 autostartEnableButton.addEventListener('click', enableAutostartFromPrompt)
 autostartSkipButton.addEventListener('click', dismissAutostartPrompt)
@@ -583,6 +591,7 @@ async function togglePlayback() {
 }
 
 async function logout() {
+  if (isLoggingOut) return
   isLoggingOut = true
   clearPlaybackRetry(true)
   if (volumeSyncTimer !== null) {
@@ -623,6 +632,10 @@ async function logout() {
   loginForm.hidden = false
   passwordInput.value = ''
   usernameInput.focus()
+}
+
+function requestLogout() {
+  if (!logoutDialog.open && !isLoggingOut) logoutDialog.showModal()
 }
 
 function setTrack(item) {

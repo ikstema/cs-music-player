@@ -169,6 +169,16 @@
       </div>
     </dialog>
 
+    <dialog class="autostart-dialog" id="logout-dialog" aria-labelledby="logout-title" aria-describedby="logout-message">
+      <div class="eyebrow">ВЫХОД ИЗ АККАУНТА</div>
+      <h2 id="logout-title">Выйти из аккаунта?</h2>
+      <p id="logout-message">Текущий эфир остановится, а сохранённый вход будет удалён. Для повторного входа понадобятся логин и пароль.</p>
+      <div class="autostart-dialog-actions">
+        <button class="button button-secondary" id="logout-cancel" type="button" autofocus>Отмена</button>
+        <button class="button button-primary" id="logout-confirm" type="button">Выйти</button>
+      </div>
+    </dialog>
+
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
