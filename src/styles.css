@@ -106,6 +106,20 @@ body {
 
 .update-setting small {
   max-width: 210px;
+  line-height: 1.4;
+}
+
+.update-setting small[data-state="success"],
+.update-setting small[data-state="available"] {
+  color: var(--sage);
+}
+
+.update-setting small[data-state="error"] {
+  color: #e9b0a5;
+}
+
+html[data-player-theme="light"] .update-setting small[data-state="error"] {
+  color: #982f2f;
 }
 
 .update-check-button {
@@ -517,11 +531,22 @@ html[data-client-platform="android"] .settings-section .player-setting-row {
 }
 
 html[data-client-platform="android"] .settings-section .update-setting {
-  align-items: center;
+  align-items: flex-start;
+  flex-wrap: wrap;
 }
 
 html[data-client-platform="android"] .settings-section .update-setting small {
-  max-width: 190px;
+  max-width: none;
+  overflow-wrap: anywhere;
+}
+
+html[data-client-platform="android"] .settings-section .update-setting > span {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+html[data-client-platform="android"] .settings-section .update-check-button {
+  align-self: center;
 }
 
 html[data-client-platform="android"] .player-bottom-navigation {

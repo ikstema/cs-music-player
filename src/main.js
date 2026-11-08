@@ -132,7 +132,6 @@ autostartEnableButton.addEventListener('click', enableAutostartFromPrompt)
 autostartSkipButton.addEventListener('click', dismissAutostartPrompt)
 autostartDialog.addEventListener('cancel', () => localStorage.setItem(AUTOSTART_ASKED_KEY, 'true'))
 checkUpdatesButton.addEventListener('click', () => {
-  playerSettings.open = false
   checkForUpdates(true)
 })
 updateLaterButton.addEventListener('click', () => updateDialog.close())
@@ -231,41 +230,45 @@ async function checkForUpdates(manual = false) {
   if (checkingForUpdates) return
   checkingForUpdates = true
   checkUpdatesButton.disabled = true
-  if (manual) updateStatus.textContent = 'Проверяем…'
+  if (manual) {
+    checkUpdatesButton.textContent = 'Проверяю…'
+    setUpdateStatus('Проверяем новую версию…', 'checking')
+  }
 
   try {
     if (isAndroid) {
-      await checkAndroidRelease(manual)
+      await checkAndroidRelease()
     } else {
-      await checkDesktopRelease(manual)
+      await checkDesktopRelease()
     }
   } catch (error) {
     console.warn('Не удалось проверить обновления Cityshake Player:', error)
-    if (manual) updateStatus.textContent = 'Не удалось проверить обновления.'
+    setUpdateStatus(updateCheckErrorMessage(error), 'error')
   } finally {
     checkingForUpdates = false
     checkUpdatesButton.disabled = false
+    checkUpdatesButton.textContent = 'Проверить'
   }
 }
 
-async function checkDesktopRelease(manual) {
+async function checkDesktopRelease() {
   const { check } = await import('@tauri-apps/plugin-updater')
   pendingDesktopUpdate = await check()
   pendingAndroidUpdate = null
 
   if (!pendingDesktopUpdate) {
-    if (manual) updateStatus.textContent = 'Установлена последняя версия.'
+    setUpdateStatus(`Версия ${await getVersion()} актуальна.`, 'success')
     return
   }
 
-  updateStatus.textContent = `Доступна версия ${pendingDesktopUpdate.version}.`
+  setUpdateStatus(`Доступна версия ${pendingDesktopUpdate.version}.`, 'available')
   await showUpdatePrompt({
     version: pendingDesktopUpdate.version,
     actionLabel: 'Установить',
   })
 }
 
-async function checkAndroidRelease(manual) {
+async function checkAndroidRelease() {
   pendingDesktopUpdate = null
   pendingAndroidUpdate = null
   const response = await fetch('https://api.github.com/repos/ikstema/cs-music-player/releases/latest', {
@@ -277,7 +280,7 @@ async function checkAndroidRelease(manual) {
   const currentVersion = await getVersion()
   const apk = release.assets?.find((asset) => asset.name === 'cityshake-player-android-arm64.apk')
   if (!apk || !isVersionNewer(release.tag_name, currentVersion)) {
-    if (manual) updateStatus.textContent = 'Установлена последняя версия.'
+    setUpdateStatus(`Версия ${currentVersion} актуальна.`, 'success')
     return
   }
 
@@ -288,8 +291,28 @@ async function checkAndroidRelease(manual) {
 
   pendingDesktopUpdate = null
   pendingAndroidUpdate = { version: release.tag_name, downloadUrl: downloadUrl.href }
-  updateStatus.textContent = `Доступна версия ${release.tag_name}.`
+  setUpdateStatus(`Доступна версия ${release.tag_name}.`, 'available')
   await showUpdatePrompt({ version: release.tag_name, actionLabel: 'Обновить' })
+}
+
+function setUpdateStatus(message, state) {
+  updateStatus.textContent = message
+  updateStatus.dataset.state = state
+}
+
+function updateCheckErrorMessage(error) {
+  const message = errorText(error)
+  if (
+    navigator.onLine === false
+    || error?.name === 'TypeError'
+    || /failed to fetch|network|connection|connect|dns|resolve|unreachable|no route to host|timed?\s*out|offline/i.test(message)
+  ) {
+    return 'Нет связи с сервером обновлений. Проверьте интернет и повторите проверку.'
+  }
+
+  const status = message.match(/\bHTTP\s+(\d{3})\b/i)
+  if (status) return `Сервис обновлений ответил ошибкой ${status[1]}. Попробуйте позже.`
+  return `Не удалось проверить обновления: ${message}`
 }
 
 async function showUpdatePrompt({ version, actionLabel }) {
@@ -311,9 +334,9 @@ async function installAvailableUpdate() {
     try {
       await invoke('plugin:native-audio|install_update', { url: pendingAndroidUpdate.downloadUrl })
       updateDialog.close()
-      updateStatus.textContent = 'Подтвердите установку в системном окне Android.'
+      setUpdateStatus('Подтвердите установку в системном окне Android.', 'success')
     } catch (error) {
-      updateStatus.textContent = `Не удалось установить обновление: ${errorText(error)}`
+      setUpdateStatus(`Не удалось установить обновление: ${errorText(error)}`, 'error')
       updateInstallButton.textContent = 'Повторить'
       updateInstallButton.disabled = false
     }
@@ -327,7 +350,7 @@ async function installAvailableUpdate() {
     const { relaunch } = await import('@tauri-apps/plugin-process')
     await relaunch()
   } catch (error) {
-    updateStatus.textContent = `Не удалось установить обновление: ${errorText(error)}`
+    setUpdateStatus(`Не удалось установить обновление: ${errorText(error)}`, 'error')
     updateInstallButton.textContent = 'Повторить'
     updateInstallButton.disabled = false
   }
